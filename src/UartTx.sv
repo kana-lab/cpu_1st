@@ -63,6 +63,8 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
                 if (counter > CLK_TILL_STOP_BIT - 1) begin
                     tx_busy <= 0;
                     state <= next_state;
+                end else begin
+                    counter++;
                 end
             end
         end
