@@ -1,7 +1,7 @@
 `timescale 1ps/1ps
 
 // UARTのレシーバやセンダーはDmaControllerの外部に置くことにする
-module DmaController #(CLK_PER_HALF_BIT = 5208) (
+module DmaController (
     input wire clock,
     input wire reset,
 
