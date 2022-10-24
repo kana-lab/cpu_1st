@@ -7,13 +7,23 @@
 
 module Core(
     input wire clock,
-    input wire reset
+    input wire reset,
+
+    // メモリとの通信用の信号線
+    // メモリ以外のI/Oアクセスも全てこれを介して行う予定 (MMIO)
+    output wire mem_write_enable,
+    output wire [31:0] mem_address,
+    output wire [31:0] mem_write_data,
+    input wire [31:0] mem_read_data,
+    output wire [31:0] mem_instr_address,
+    input wire [31:0] mem_instr
     );
 
     // instruction memoryとの接続
     reg [31:0] pc;  // TODO: set input
-    wire [31:0] instruction;
-    InstructionMemory im(.address(pc), .instruction);
+    wire [31:0] instruction = mem_instr;
+    assign mem_instr_address = pc;
+    // InstructionMemory im(.address(pc), .instruction);
 
     // opの単離
     wire [2:0] op;
@@ -95,10 +105,14 @@ module Core(
 
     // data memoryとの接続
     wire [31:0] load_result;
-    DataMemory dm(
-        .clock, .write_enable(op[2] & op[1] & ~op[0]),
-        .address(read2), .write_data(read1), .read_data(load_result)
-    );  
+    assign mem_write_enable = op[2] & op[1] & ~op[0];
+    assign mem_address = read2;
+    assign mem_write_data = read1;
+    assign load_result = mem_read_data;
+    // DataMemory dm(
+    //     .clock, .write_enable(op[2] & op[1] & ~op[0]),
+    //     .address(read2), .write_data(read1), .read_data(load_result)
+    // );
 
     // レジスタファイルに書き込むデータの選択
     assign write_data = (op[2]) ? load_result : ((op[1]) ? fpu_result : alu_result);

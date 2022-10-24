@@ -1,7 +1,7 @@
 `timescale 1ps/1ps
 
-// UARTのレシーバやセンダーはLoaderの外部に置くことにする
-module Loader #(CLK_PER_HALF_BIT = 5208) (
+// UARTのレシーバやセンダーはDmaControllerの外部に置くことにする
+module DmaController #(CLK_PER_HALF_BIT = 5208) (
     input wire clock,
     input wire reset,
 
