@@ -48,7 +48,7 @@ module DmaController (
             state <= 4'b1;
             n_byte <= 4'b1;
             program_size <= 0;
-            program_size_debug <= 0;
+            program_size_debug <= 16'hffff;
 
             tx_start <= 0;
             instr_ready <= 0;
@@ -67,11 +67,17 @@ module DmaController (
                 // if (rx_ready)
                 //     state <= next_state;
             end
+
+            if (state[2] & ~(|program_size) & ~tx_busy) begin
+                tx_start <= 1'b1;
+                sdata <= 8'haa;
+                state <= next_state;
+            end
             
             // 仕様を満たさない余分な受信データがあった場合正常に動作しない
             // また、プログラムおよびデータは4の倍数byteでないと正確に受信されない
             if (rx_ready) begin
-                data <= {data[23:0],rdata};
+                data <= {rdata,data[31:24]};
                 n_byte <= next_n_byte;
 
                 if (state[1] & n_byte[3]) begin
@@ -81,16 +87,8 @@ module DmaController (
                 end
 
                 if (state[2]) begin
-                    if (|program_size) begin
-                        program_size--;
-                        if (n_byte[3]) instr_ready <= 1'b1;
-                    end else begin
-                        if (~tx_busy) begin
-                            tx_start <= 1'b1;
-                            sdata <= 8'haa;
-                            state <= next_state;
-                        end
-                    end
+                    program_size--;
+                    if (n_byte[3]) instr_ready <= 1'b1;
                 end
 
                 if (state[3] & n_byte[3]) begin
