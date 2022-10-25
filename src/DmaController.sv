@@ -66,7 +66,7 @@ module DmaController (
             // 仕様を満たさない余分な受信データがあった場合正常に動作しない
             // また、プログラムおよびデータは4の倍数byteでないと正確に受信されない
             if (rx_ready) begin
-                data <= {data[23:0],rdata};
+                data <= {rdata,data[31:24]};
                 n_byte <= next_n_byte;
 
                 if (state[1] & n_byte[3]) begin
