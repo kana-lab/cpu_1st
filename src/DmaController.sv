@@ -30,7 +30,7 @@ module DmaController (
     // 1000: プログラムを取得して0xaaを送った後、データを取得している状態
     reg [3:0] state;
     wire [3:0] next_state = {state[2:0], 1'b0};
-    assign program_loaded = state[3];
+    assign program_loaded = ~state[3];
 
     // 0001: int型の値の1byte目を取得しようとしている状態
     // ...
@@ -40,7 +40,7 @@ module DmaController (
 
     // プログラムサイズ(little endian)
     reg [31:0] program_size;
-    reg [31:0] program_size_debug;
+    (* ASYNTC_REG = "true" *) reg [31:0] program_size_debug;
     assign led = program_size_debug[15:0];
 
     always_ff @(posedge clock) begin
