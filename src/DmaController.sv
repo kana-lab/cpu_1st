@@ -30,7 +30,7 @@ module DmaController (
     // 1000: プログラムを取得して0xaaを送った後、データを取得している状態
     reg [3:0] state;
     wire [3:0] next_state = {state[2:0], 1'b0};
-    assign program_loaded = ~state[3];
+    assign program_loaded = state[3];
 
     // 0001: int型の値の1byte目を取得しようとしている状態
     // ...
@@ -77,7 +77,7 @@ module DmaController (
             // 仕様を満たさない余分な受信データがあった場合正常に動作しない
             // また、プログラムおよびデータは4の倍数byteでないと正確に受信されない
             if (rx_ready) begin
-                data <= {rdata,data[31:24]};
+                data <= {rdata,data[31:8]};
                 n_byte <= next_n_byte;
 
                 if (state[1] & n_byte[3]) begin

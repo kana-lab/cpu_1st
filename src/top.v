@@ -42,8 +42,9 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire [31:0] read_data;
     wire [31:0] instr_address;
     wire [31:0] instr;
+    wire cpu_reset = ~program_loaded;
     Core core(
-        clock, program_loaded, write_enable, address, write_data,
+        clock, cpu_reset, write_enable, address, write_data,
         read_data, instr_address, instr
     );
 
