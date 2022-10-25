@@ -40,6 +40,7 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
                 counter <= 0;
                 txbuf <= sdata;
                 state <= next_state;
+                tx_busy <= 1'b1;
                 txd <= 0;
             end
 

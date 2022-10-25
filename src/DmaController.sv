@@ -49,14 +49,18 @@ module DmaController (
             instr_ready <= 0;
             mem_ready <= 0;
         end else begin
-            if (tx_start) tx_start <= 0;
+            if (tx_start & ~state[0]) tx_start <= 0;
             if (instr_ready) instr_ready <= 0;
             if (mem_ready) mem_ready <= 0;
 
-            if (state[0] & ~tx_busy) begin
+            // 最初に0x99を繰り返し送り、PC側が反応を示すのを待つ
+            // ...と思ったが、PCとのstart bitの認識の齟齬が起きたら死ぬのでやめる
+            if (state[0]) begin
                 tx_start <= 1'b1;
                 sdata <= 8'h99;
                 state <= next_state;
+                // if (rx_ready)
+                //     state <= next_state;
             end
             
             // 仕様を満たさない余分な受信データがあった場合正常に動作しない
