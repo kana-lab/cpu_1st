@@ -10,7 +10,7 @@ LOOP:
     addi r10, r10, 1
     blt r10, r11, LOOP
 
-    addi r12, zero, -15
+    addi r12, zero, -12
     sw r0, r12
 HALT:
-    jal HALT
+    j HALT

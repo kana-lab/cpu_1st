@@ -30,7 +30,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire [31:0] data;
     wire program_loaded;
     wire w_tx_start1;
-    wire [31:0] w_sdata1;
+    wire [7:0] w_sdata1;
     DmaController dma_controller(
         clock, reset, rx_ready, rdata, tx_busy, w_tx_start1, w_sdata1,
         instr_ready, mem_ready, data, program_loaded
@@ -49,7 +49,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     );
 
     wire w_tx_start2;
-    wire [31:0] w_sdata2;
+    wire [7:0] w_sdata2;
     MemoryControllerHub mch(
         clock, reset, instr_ready, mem_ready, data,
         write_enable, address, write_data, read_data, instr_address, instr,
