@@ -6,7 +6,7 @@
 // `include "core.sv"
 // `include "MemoryControllerHub.sv"
 
-module top #(parameter CLK_PER_HALF_BIT = 15) (
+module top #(parameter CLK_PER_HALF_BIT = 10) (
     input wire clock,
     input wire resetn,
     input wire rxd,
@@ -28,8 +28,10 @@ module top #(parameter CLK_PER_HALF_BIT = 15) (
     wire mem_ready;
     wire [31:0] data;
     wire program_loaded;
+    wire w_tx_start1;
+    wire [31:0] w_sdata1;
     DmaController dma_controller(
-        clock, reset, rx_ready, rdata, tx_busy, tx_start, sdata,
+        clock, reset, rx_ready, rdata, tx_busy, w_tx_start1, w_sdata1,
         instr_ready, mem_ready, data, program_loaded
     );
 
@@ -44,9 +46,14 @@ module top #(parameter CLK_PER_HALF_BIT = 15) (
         read_data, instr_address, instr
     );
 
+    wire w_tx_start2;
+    wire [31:0] w_sdata2;
     MemoryControllerHub mch(
         clock, reset, instr_ready, mem_ready, data,
         write_enable, address, write_data, read_data, instr_address, instr,
-        tx_start, sdata, tx_busy
+        w_tx_start2, w_sdata2, tx_busy
     );
+
+    assign tx_start = w_tx_start1 | w_tx_start2;
+    assign sdata = (w_tx_start1) ? w_sdata1 : w_sdata2;
 endmodule
