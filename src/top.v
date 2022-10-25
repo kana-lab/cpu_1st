@@ -33,7 +33,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire [31:0] w_sdata1;
     DmaController dma_controller(
         clock, reset, rx_ready, rdata, tx_busy, w_tx_start1, w_sdata1,
-        instr_ready, mem_ready, data, program_loaded, led
+        instr_ready, mem_ready, data, program_loaded
     );
 
     wire write_enable;
@@ -45,7 +45,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire cpu_reset = ~program_loaded;
     Core core(
         clock, cpu_reset, write_enable, address, write_data,
-        read_data, instr_address, instr
+        read_data, instr_address, instr, led
     );
 
     wire w_tx_start2;
