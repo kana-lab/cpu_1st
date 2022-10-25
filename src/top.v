@@ -10,7 +10,8 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     input wire clock,
     input wire resetn,
     input wire rxd,
-    output wire txd
+    output wire txd,
+    output wire [15:0] led
 );
     wire reset = ~resetn;
 
@@ -32,7 +33,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire [31:0] w_sdata1;
     DmaController dma_controller(
         clock, reset, rx_ready, rdata, tx_busy, w_tx_start1, w_sdata1,
-        instr_ready, mem_ready, data, program_loaded
+        instr_ready, mem_ready, data, program_loaded, led
     );
 
     wire write_enable;

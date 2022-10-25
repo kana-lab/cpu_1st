@@ -17,7 +17,9 @@ module DmaController (
     output reg instr_ready,
     output reg mem_ready,
     output reg [31:0] data,
-    output wire program_loaded
+    output wire program_loaded,
+
+    output wire [15:0] led
     );
 
     // server/readme.pdfの仕様に従って実装する
@@ -38,12 +40,15 @@ module DmaController (
 
     // プログラムサイズ(little endian)
     reg [31:0] program_size;
+    reg [31:0] program_size_debug;
+    assign led = program_size_debug[15:0];
 
     always_ff @(posedge clock) begin
         if (reset) begin
             state <= 4'b1;
             n_byte <= 4'b1;
             program_size <= 0;
+            program_size_debug <= 0;
 
             tx_start <= 0;
             instr_ready <= 0;
@@ -71,6 +76,7 @@ module DmaController (
 
                 if (state[1] & n_byte[3]) begin
                     program_size <= data;
+                    program_size_debug <= data;
                     state <= next_state;
                 end
 
