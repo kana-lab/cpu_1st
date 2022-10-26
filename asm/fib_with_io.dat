@@ -10,7 +10,16 @@ LOOP:
     addi r10, r10, 1
     blt r10, r11, LOOP
 
-    addi r12, zero, -15
+    # データを返すのが早すぎてserver.pyに受信されないので遅延させる
+    # 今現在は4MHzくらいで動かしているので400万サイクル待つ
+    addi r3, zero, 1
+    slli r3, r3, 20
+WAIT500MS:
+    beq r3, zero, WAIT500MS_END
+    addi r3, r3, -1
+    j WAIT500MS
+WAIT500MS_END:
+    addi r12, zero, -12
     sw r0, r12
 HALT:
-    jal HALT
+    j HALT
