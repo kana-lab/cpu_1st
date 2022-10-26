@@ -5,7 +5,7 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
     input wire reset,
     input wire tx_start,
     input wire [7:0] sdata,
-    output reg tx_busy,
+    output wire tx_busy,
     output reg txd
     );
 
@@ -28,9 +28,12 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
     reg [9:0] n_sent;
     wire [9:0] next_n_sent = {n_sent[8:0],n_sent[9]};
 
+    reg tx_busy_1clock_behind;
+    assign tx_busy = tx_busy_1clock_behind | tx_start;
+
     always_ff @(posedge clock) begin
         if (reset) begin
-            tx_busy <= 0;
+            tx_busy_1clock_behind <= 0;
             txd <= 1'b1;
 
             state <= 3'b1;
@@ -40,7 +43,7 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
                 counter <= 0;
                 txbuf <= sdata;
                 state <= next_state;
-                tx_busy <= 1'b1;
+                tx_busy_1clock_behind <= 1'b1;
                 txd <= 0;
             end
 
@@ -62,7 +65,7 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
 
             if (state[2]) begin
                 if (counter > CLK_TILL_STOP_BIT - 1) begin
-                    tx_busy <= 0;
+                    tx_busy_1clock_behind <= 0;
                     state <= next_state;
                 end else begin
                     counter++;

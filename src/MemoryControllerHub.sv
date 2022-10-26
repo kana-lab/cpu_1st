@@ -40,7 +40,9 @@ module MemoryControllerHub #(
     // DmaControllerもUartTxを利用するが、利用時期が重ならないので安全
     output reg tx_start,
     output reg [7:0] sdata,
-    input wire tx_busy
+    input wire tx_busy,
+
+    output wire [7:0] led
 );
 
     // ブート時に受信したinstructionを格納していく際に用いるポインタ
@@ -72,6 +74,7 @@ module MemoryControllerHub #(
     // ブート終了後、送信したいデータをリングバッファに格納する際に用いるポインタ
     // このリングバッファはLUT上に実装する
     reg [7:0] sbuf_start;
+    assign led = sbuf_start;
     reg [7:0] sbuf_end;
     wire [31:0] sbuf_size = (SEND_BUF_SIZE + sbuf_end - sbuf_start) % SEND_BUF_SIZE;
     wire [31:0] sbuf_rest_size = SEND_BUF_SIZE - 1 - sbuf_size;
@@ -81,11 +84,18 @@ module MemoryControllerHub #(
     // 現在の指示がリングバッファへのプッシュであるか否か
     wire is_push_queue = address[31] & address[2] & write_enable;
 
+    // あらかじめsbufを分割しておく
+    wire [7:0] sbuf_to_byte[3:0];
+    assign {sbuf_to_byte[3], sbuf_to_byte[2], sbuf_to_byte[1], sbuf_to_byte[0]} = sbuf[sbuf_start];
+
     always_ff @( posedge clock ) begin
         if (reset) begin
             sbuf_start <= 0;
             sbuf_end <= 0;
             send_status <= 4'b1;
+            
+            tx_start <= 0;
+            sdata <= 0;
         end else begin
             if (tx_start) tx_start <= 0;
 
@@ -93,11 +103,11 @@ module MemoryControllerHub #(
                 tx_start <= 1'b1;
                 send_status <= next_send_status;
 
-                if (send_status[0]) sdata <= sbuf[sbuf_start][7:0];
-                if (send_status[1]) sdata <= sbuf[sbuf_start][15:8];
-                if (send_status[2]) sdata <= sbuf[sbuf_start][23:16];
+                if (send_status[0]) sdata <= sbuf_to_byte[0];
+                if (send_status[1]) sdata <= sbuf_to_byte[1];
+                if (send_status[2]) sdata <= sbuf_to_byte[2];
                 if (send_status[3]) begin
-                    sdata <= sbuf[sbuf_start][31:24];
+                    sdata <= sbuf_to_byte[3];
                     sbuf_start <= (sbuf_start + 8'b1) % SEND_BUF_SIZE;
                 end
             end

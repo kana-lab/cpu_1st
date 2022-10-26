@@ -18,12 +18,12 @@ module Core(
     output wire [31:0] mem_instr_address,
     input wire [31:0] mem_instr,
 
-    output wire [15:0] led
+    output wire [7:0] led
     );
 
     // instruction memoryとの接続
     reg [31:0] pc;  // TODO: set input
-    assign led = pc[15:0];
+    assign led = pc[7:0];
     wire [31:0] instruction = mem_instr;
     assign mem_instr_address = pc;
     // InstructionMemory im(.address(pc), .instruction);

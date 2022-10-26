@@ -45,7 +45,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire cpu_reset = ~program_loaded;
     Core core(
         clock, cpu_reset, write_enable, address, write_data,
-        read_data, instr_address, instr, led
+        read_data, instr_address, instr, led[7:0]
     );
 
     wire w_tx_start2;
@@ -53,7 +53,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     MemoryControllerHub mch(
         clock, reset, instr_ready, mem_ready, data,
         write_enable, address, write_data, read_data, instr_address, instr,
-        w_tx_start2, w_sdata2, tx_busy
+        w_tx_start2, w_sdata2, tx_busy, led[15:8]
     );
 
     assign tx_start = w_tx_start1 | w_tx_start2;
