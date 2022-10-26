@@ -36,6 +36,8 @@ module DmaController (
     reg [3:0] n_byte;
     wire [3:0] next_n_byte = {n_byte[2:0],n_byte[3]};
 
+    wire [31:0] next_data = {rdata,data[31:8]};
+
     // プログラムサイズ(little endian)
     reg [31:0] program_size;
 
@@ -62,6 +64,12 @@ module DmaController (
                 // if (rx_ready)
                 //     state <= next_state;
             end
+
+            if (state[2] && program_size == 0 && ~tx_busy) begin
+                tx_start <= 1'b1;
+                sdata <= 8'haa;
+                state <= next_state;
+            end
             
             // 仕様を満たさない余分な受信データがあった場合正常に動作しない
             // また、プログラムおよびデータは4の倍数byteでないと正確に受信されない
@@ -70,21 +78,13 @@ module DmaController (
                 n_byte <= next_n_byte;
 
                 if (state[1] & n_byte[3]) begin
-                    program_size <= data;
+                    program_size <= next_data;
                     state <= next_state;
                 end
 
                 if (state[2]) begin
-                    if (|program_size) begin
-                        program_size--;
-                        if (n_byte[3]) instr_ready <= 1'b1;
-                    end else begin
-                        if (~tx_busy) begin
-                            tx_start <= 1'b1;
-                            sdata <= 8'haa;
-                            state <= next_state;
-                        end
-                    end
+                    program_size--;
+                    if (n_byte[3]) instr_ready <= 1'b1;
                 end
 
                 if (state[3] & n_byte[3]) begin

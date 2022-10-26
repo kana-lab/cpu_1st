@@ -10,7 +10,8 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     input wire clock,
     input wire resetn,
     input wire rxd,
-    output wire txd
+    output wire txd,
+    output wire [15:0] led
 );
     wire reset = ~resetn;
 
@@ -29,7 +30,7 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire [31:0] data;
     wire program_loaded;
     wire w_tx_start1;
-    wire [31:0] w_sdata1;
+    wire [7:0] w_sdata1;
     DmaController dma_controller(
         clock, reset, rx_ready, rdata, tx_busy, w_tx_start1, w_sdata1,
         instr_ready, mem_ready, data, program_loaded
@@ -41,17 +42,18 @@ module top #(parameter CLK_PER_HALF_BIT = 10) (
     wire [31:0] read_data;
     wire [31:0] instr_address;
     wire [31:0] instr;
+    wire cpu_reset = ~program_loaded;
     Core core(
-        clock, program_loaded, write_enable, address, write_data,
-        read_data, instr_address, instr
+        clock, cpu_reset, write_enable, address, write_data,
+        read_data, instr_address, instr, led[7:0]
     );
 
     wire w_tx_start2;
-    wire [31:0] w_sdata2;
+    wire [7:0] w_sdata2;
     MemoryControllerHub mch(
         clock, reset, instr_ready, mem_ready, data,
         write_enable, address, write_data, read_data, instr_address, instr,
-        w_tx_start2, w_sdata2, tx_busy
+        w_tx_start2, w_sdata2, tx_busy, led[15:8]
     );
 
     assign tx_start = w_tx_start1 | w_tx_start2;
