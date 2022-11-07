@@ -18,17 +18,17 @@ init:
     # 文字コード
     # - 0x3e: >
     # - 0x20: space
-    addi r204, zero, 0x3e
+    addi r204, zero, 0x20
     slli r204, r204, 8
     addi r204, r204, 0x3e
     slli r204, r204, 8
     addi r204, r204, 0x3e
     slli r204, r204, 8
-    addi r204, r204, 0x20
+    addi r204, r204, 0x3e
 
     # fp, spを用いてキューを表現することにする
     addi fp, zero, 1
-    slli fp, fp, 9
+    slli fp, fp, 8
     add sp, zero, fp
 
 loop:

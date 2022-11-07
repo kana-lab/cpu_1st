@@ -64,10 +64,12 @@ module MemoryControllerHub #(
 
             if (mem_ready) begin
                 mem_end <= (mem_end + 32'b1) % INPUT_DATA_SEGMENT_SIZE;
-                if (mem_size == INPUT_DATA_SEGMENT_SIZE - 1 || is_pop_queue) begin
+                if (mem_size == INPUT_DATA_SEGMENT_SIZE - 1)
                     mem_start <= (mem_start + 32'b1) % INPUT_DATA_SEGMENT_SIZE;
-                end
             end
+
+            if (is_pop_queue)
+                mem_start <= (mem_start + 32'b1) % INPUT_DATA_SEGMENT_SIZE;
         end
     end
 
@@ -76,8 +78,8 @@ module MemoryControllerHub #(
     reg [7:0] sbuf_start;
     assign led = sbuf_start;
     reg [7:0] sbuf_end;
-    wire [31:0] sbuf_size = (SEND_BUF_SIZE + sbuf_end - sbuf_start) % SEND_BUF_SIZE;
-    wire [31:0] sbuf_rest_size = SEND_BUF_SIZE - 1 - sbuf_size;
+    wire [7:0] sbuf_size = (SEND_BUF_SIZE + sbuf_end - sbuf_start) % SEND_BUF_SIZE;
+    wire [7:0] sbuf_rest_size = SEND_BUF_SIZE - 1 - sbuf_size;
     reg [31:0] sbuf[SEND_BUF_SIZE - 1:0];
     reg [3:0] send_status;
     wire [3:0] next_send_status = {send_status[2:0],send_status[3]};
@@ -121,7 +123,7 @@ module MemoryControllerHub #(
 
     // メタステーブル状態だと危険かも？多分大丈夫だとは思うが。。。
     wire mem_write_enable = write_enable & ~address[31];
-    wire [31:0] mem_address = (address[31]) ? mem_start : address;
+    wire [31:0] mem_address = (address[31]) ? mem_start + INPUT_DATA_SEGMENT : address;
     wire [31:0] mem_write_data = write_data;
     wire mem_dma_enable = instr_ready | mem_ready;
     wire [31:0] mem_dma_address = (instr_ready) ? instr_end + CODE_SEGMENT : mem_end + INPUT_DATA_SEGMENT;
@@ -129,14 +131,14 @@ module MemoryControllerHub #(
 
     wire [31:0] mem_read_data;
     Memory #(WORD_NUM) m(
-        .clock, .write_enable(we), .address(mem_address), .write_data(mem_write_data),
+        .clock, .write_enable(mem_write_enable), .address(mem_address), .write_data(mem_write_data),
         .read_data(mem_read_data), .dma_enable(mem_dma_enable),
         .dma_address(mem_dma_address), .dma_data(mem_dma_data), .instr_address, .instr
     );
 
     wire [31:0] uart_recv = (address[0]) ? mem_read_data : 0;
     wire [31:0] uart_recv_size = (address[1]) ? mem_size : 0;
-    wire [31:0] uart_sendable = (address[3]) ? sbuf_rest_size : 0;
+    wire [31:0] uart_sendable = (address[3]) ? {24'b0,sbuf_rest_size} : 0;
     wire [31:0] mmio_res = uart_recv | uart_recv_size | uart_sendable;
     assign read_data = (address[31]) ?  mmio_res : mem_read_data;
 endmodule
