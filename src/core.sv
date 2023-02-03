@@ -1,41 +1,5 @@
 `timescale 1ps / 1ps
-
-
-interface DataMemory;
-    wire en;
-    wire stall;
-    wire we;
-    wire [31:0] addr;
-    wire [31:0] wd;
-    wire [31:0] rd;
-
-    modport master (
-        input stall, rd,
-        output en, we, addr, wd
-    );
-
-    modport slave (
-        input en, we, addr, wd,
-        output stall, rd
-    );
-endinterface //DataMemory
-
-
-interface InstructionMemory;
-    wire stall;
-    wire [31:0] addr;
-    wire [31:0] instr;
-
-    modport master (
-        input stall, instr,
-        output addr
-    );
-
-    modport slave (
-        input addr,
-        output stall, instr
-    );
-endinterface //InstructionMemory
+`include "MemoryInterface.sv"
 
 
 module IFStage(
@@ -257,4 +221,57 @@ module EX_MEMStage(
         wb_data <= ex_result;
         wb_enable <= wb_enable_w;
     end
+endmodule
+
+
+module Core(
+    input wire clock,
+    input wire reset,
+
+    InstructionMemory.master m_instr,
+    DataMemory.master m_data,
+);
+    wire instr_stall;
+    wire data_stall;
+    wire branch_taken;
+    wire [31:0] new_pc;
+
+    wire [31:0] instruction;
+    wire [31:0] prog_counter;
+
+    IFStage if_stage(
+        .clock, .reset, .m_instr, .instr_stall, .dadta_stall,
+        .branch_taken, .new_pc, .instruction, .prog_counter
+    );
+
+    wire wb_enable;
+    wire [7:0] wb_dest;
+    wire [7:0] wb_data;
+
+    wire [7:0] src1;
+    wire [7:0] src2_or_imm8;
+    wire [31:0] read1;
+    wire [31:0] read2;
+    wire [7:0] dest;
+    wire [31:0] prog_counter2;
+    wire [31:0] imm_ext10;
+    wire [31:0] imm_ext26;
+    wire [2:0] op;
+    wire [4:0] funct5;
+
+    IDStage id_stage(
+        .clock, .reset, .instruction, .pc_in(prog_counter),
+        .stall(instr_stall | data_stall), .flash(branch_taken),
+        .wb_enable, .wb_dest, .wb_data, .src1, .src2_or_imm8,
+        .read1, .read2, .dest, .pc_out(prog_counter2),
+        .imm_ext10, .imm_ext26, .op, .funct5
+    );
+
+    EX_MEMStage ex_mem_stage(
+        .clock, .reset, .src1, .src2_or_imm8, .read1, .read2, .dest,
+        .pc(prog_counter2), .imm_ext10, .imm_ext26, .op, .funct5,
+        .wb_enable_in(wb_enable), .wb_dest_in(wb_dest), .wb_data_in(wb_data),
+        .m_data, .instr_stall, .data_stall, .branch_taken, .new_pc,
+        .wb_enable, .wb_dest, .wb_data
+    );
 endmodule
