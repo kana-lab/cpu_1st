@@ -1,41 +1,32 @@
 `timescale 1ps / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 2022/10/07 11:25:11
-// Design Name: 
-// Module Name: ALU
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
 
 module ALU(
+    input wire is_imm,
     input wire [31:0] val1,
     input wire [31:0] val2,
     input wire [4:0] funct,
     output wire [31:0] result
-    );
-    wire [31:0] add_result;
-    assign add_result = (funct[0]) ? val1 + val2 : 0;
-    wire [31:0] sub_result;
-    assign sub_result = (funct[1]) ? val1 - val2 : 0;
-    wire [31:0] sll_result;
-    assign sll_result = (funct[2]) ? val1 << val2 : 0;
-    wire [31:0] srl_result;
-    assign srl_result = (funct[3]) ? val1 >> val2 : 0;
-    wire [31:0] sra_result;
-    assign sra_result = (funct[4]) ? $signed(val1) >> $signed(val2) : 0;
+);
+    wire [31:0] addi = (funct[0]) ? val1 + val2 : 0;
+    wire [31:0] subi = (funct[1]) ? val1 - val2 : 0;
+    wire [31:0] slli = (funct[2]) ? val1 << val2 : 0;
+    wire [31:0] srli = (funct[3]) ? val1 >> val2 : 0;
+    wire [31:0] srai = (funct[4]) ? $signed(val1) >> $signed(val2) : 0;
+    wire imm_result = addi | subi | slli | srli | srai;
 
-    assign result = add_result | sub_result | sll_result | srl_result | sra_result;
+    wire [31:0] addsub = (funct[0]) ? val1 + val2 : val1 - val2;
+    wire [31:0] sll = (funct[0]) ? val1 << val2 : 0;
+    wire [31:0] srl = (funct[1]) ? val1 >> val2 : 0;
+    wire [31:0] sra = (funct[2]) ? $signed(val1) >> $signed(val2) : 0;
+    wire [31:0] shift = sll | srl | sra;
+    wire [31:0] fispos = (funct[0]) ? {31'h0, ~val2[31]} : 0;
+    wire [31:0] fisneg = (funct[1]) ? {31'h0, val2[31]} : 0;
+    wire [31:0] fneg = (funct[2]) ? {~val2[31], val2[30:0]} : 0;
+    wire [31:0] fop = fispos | fisneg | fneg;
+
+    wire [1:0] f34 = funct[4:3];
+    assign result = (is_imm) ? imm_result
+                             : ((f34 == 2'b00) ? addsub :
+                                ((f34 == 2'b01) ? shift : fop));
 endmodule

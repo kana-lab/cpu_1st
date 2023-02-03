@@ -160,8 +160,11 @@ module IDStage(
 endmodule
 
 
+// en = 0 の場合のnew_pcの値は不定
 module BranchUnit(
+    input wire en,
     input wire no_cond,
+    input wire [2:0] funct3,
     input wire [2:0] val1,
     input wire [31:0] val2,
     input wire [31:0] imm_ext10,
@@ -171,7 +174,14 @@ module BranchUnit(
     output wire branch_taken,
     output wire [31:0] new_pc
 );
-    wire [31:0] offset_beq = (funct[0]) ? ((val1 == val2) ? imm_ext10 : 
+    wire beq_stsfy = (funct[0]) ? ((val1 == val2) ? 1 : 0) : 0;
+    wire blt_stsfy = (funct[1]) ? ((val1 < val2) ? 1 : 0) : 0;
+    wire ble_stsfy = (funct[2]) ? ((val1 <= val2) ? 1 : 0) : 0;
+    wire stsfy = beq_stsfy | blt_stsfy | ble_stsfy;
+    assign branch_taken = (stsfy | no_cond) & en;
+    assign new_pc = (no_cond) 
+                    ? (funct3[0] ? val2 : (pc + imm_ext26))
+                    : (stsfy ? (pc + imm_ext10) : 0);
 endmodule
 
 
@@ -207,12 +217,12 @@ module EX_MEMStage(
 );
     // フォールスルー
     wire [31:0] data1 = (wb_enable_in == 1'b1 && src1 == wb_dest_in) ? wb_data_in : read1;
-    wire [31:0] data2 = (wb_enable_in == 1'b1 && src2 == wb_dest_in) ? wb_data_in : read2;
+    wire [31:0] data2 = (wb_enable_in == 1'b1 && src2_or_imm8 == wb_dest_in) ? wb_data_in : read2;
     
     // ALUの宣言
     wire [31:0] alu_result;
     wire [31:0] alu_data2 = (op[0]) ? {24'b0, src2_or_imm8} : data2;
-    ALU alu(.val1(data1), .val2(alu_data2), .funct(funct5), .result(alu_result));
+    ALU alu(.is_imm(op[0]), .val1(data1), .val2(alu_data2), .funct(funct5), .result(alu_result));
     
     // FPUの宣言
     wire [31:0] fpu_result;
@@ -227,6 +237,13 @@ module EX_MEMStage(
     assign m_data.we = ~op[0];
     assign m_data.addr = data2;
     assign m_data.wd = data1;
+
+    // ブランチユニットの宣言
+    BranchUnit bu(
+        .en(op[2] & ~op[1]), .no_cond(op[0]), .funct3(funct5[4:2]),
+        .val1(data1), .val2(data2), .imm_ext10, .imm_ext26, .pc,
+        .branch_taken, .new_pc
+    );
     
     // WBする結果の選択
     wire [31:0] ex_result = (op[2]) ? m_data.rd : ((op[1]) ? fpu_result : alu_result);
