@@ -13,7 +13,7 @@ module ALU(
     wire [31:0] slli = (funct[2]) ? val1 << val2 : 0;
     wire [31:0] srli = (funct[3]) ? val1 >> val2 : 0;
     wire [31:0] srai = (funct[4]) ? $signed(val1) >> $signed(val2) : 0;
-    wire imm_result = addi | subi | slli | srli | srai;
+    wire [31:0] imm_result = addi | subi | slli | srli | srai;
 
     wire [31:0] addsub = (funct[0]) ? val1 + val2 : val1 - val2;
     wire [31:0] sll = (funct[0]) ? val1 << val2 : 0;

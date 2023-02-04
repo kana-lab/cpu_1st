@@ -1,5 +1,5 @@
 `timescale 1ps / 1ps
-// `include "MemoryInterface.sv"
+`include "MemoryInterface.sv"
 
 
 module IFStage(
@@ -23,7 +23,7 @@ module IFStage(
 
     assign instr_stall = m_instr.stall;
     wire stall = m_instr.stall | data_stall;
-    wire next_pc = (branch_taken) ? new_pc : ((stall) ? pc : pc + 1);
+    wire [31:0] next_pc = (branch_taken) ? new_pc : ((stall) ? pc : pc + 1);
 
     always_ff @( posedge clock ) begin
         if (reset) begin
@@ -75,7 +75,7 @@ module IDStage(
     wire [4:0] funct_arith;
     assign {funct_arith, dest_w, src1_w, src2_w} = body;
 
-    // レジスタファイルの宣言
+    // レジスタファイルの宣言、フォールスルーはこの中で行う
     wire [31:0] read1_w;
     wire [31:0] read2_w;
     RegisterFile rf(
@@ -91,10 +91,21 @@ module IDStage(
     wire [25:0] long_offset = body[25:0];
 
     always_ff @( posedge clock ) begin
-        if (~stall | reset | flash) begin
+        // src1 <= src1_w;
+        // read1 <= read1_w;
+        // read2 <= read2_w;
+        // pc_out <= pc_in;
+        // imm_ext10 <= (offset[9]) ? {22'h3fffff, offset} : {22'b0, offset};
+        // imm_ext26 <= (long_offset[25]) ? {6'h3f, long_offset} : {6'b0, long_offset};
+
+        if (~stall) begin
             src1 <= src1_w;
-            read1 <= (wb_enable == 1'b1 && src1_w == wb_dest) ? wb_data : read1_w;
-            read2 <= (wb_enable == 1'b1 && src2_w == wb_dest) ? wb_data : read2_w;
+            src2_or_imm8 <= src2_w;
+            dest <= dest_w;
+            // read1 <= (wb_enable == 1'b1 && src1_w == wb_dest) ? wb_data : read1_w;
+            // read2 <= (wb_enable == 1'b1 && src2_w == wb_dest) ? wb_data : read2_w;
+            // read1 <= read1_w;
+            // read2 <= read2_w;
             pc_out <= pc_in;
             imm_ext10 <= (offset[9]) ? {22'h3fffff, offset} : {22'b0, offset};
             imm_ext26 <= (long_offset[25]) ? {6'h3f, long_offset} : {6'b0, long_offset};
@@ -109,16 +120,28 @@ module IDStage(
                 //     一番無難なのはaddi, sec1, src1, 0とすることだと思われる
                 //     src1がゼロレジスタの場合ゼロレジスタへの書き込みが発生するが、
                 //     書き込まれる値は0なので無問題
-                src2_or_imm8 <= 0;
-                dest <= src1_w;
-                op <= 3'b1;  // imm命令
-                funct5 <= 5'b1;  // addi
+                // [追記]
+                //     パイプラインではプログラムの末尾で2命令分オーバーフローして
+                //     読むので、src1_wに依存すると未定義動作となる…
+                //     blt zero, zero, 0などが安牌か
+                // src2_or_imm8 <= 0;
+                // dest <= src1_w;
+                read1 <= 0;
+                read2 <= 0;
+                // op <= 3'b1;  // imm命令
+                // funct5 <= 5'b1;  // addi
+                op <= 3'b100;  // b命令
+                funct5 <= 5'b01000;  // blt
             end else begin
-                src2_or_imm8 <= src2_w;
-                dest <= dest_w;
+                // src2_or_imm8 <= src2_w;
+                // dest <= dest_w;
+                read1 <= read1_w;
+                read2 <= read2_w;
                 op <= op_w;
                 funct5 <= funct_arith;
             end
+        end else begin
+            
         end
     end
 endmodule
@@ -129,7 +152,7 @@ module BranchUnit(
     input wire en,
     input wire no_cond,
     input wire [2:0] funct3,
-    input wire [2:0] val1,
+    input wire [31:0] val1,
     input wire [31:0] val2,
     input wire [31:0] imm_ext10,
     input wire [31:0] imm_ext26,
@@ -138,9 +161,9 @@ module BranchUnit(
     output wire branch_taken,
     output wire [31:0] new_pc
 );
-    wire beq_stsfy = (funct3[0]) ? ((val1 == val2) ? 1 : 0) : 0;
-    wire blt_stsfy = (funct3[1]) ? ((val1 < val2) ? 1 : 0) : 0;
-    wire ble_stsfy = (funct3[2]) ? ((val1 <= val2) ? 1 : 0) : 0;
+    wire beq_stsfy = (funct3[0]) ? ((val1 == val2) ? 1'b1 : 0) : 0;
+    wire blt_stsfy = (funct3[1]) ? ((val1 < val2) ? 1'b1 : 0) : 0;
+    wire ble_stsfy = (funct3[2]) ? ((val1 <= val2) ? 1'b1 : 0) : 0;
     wire stsfy = beq_stsfy | blt_stsfy | ble_stsfy;
     assign branch_taken = (stsfy | no_cond) & en;
     assign new_pc = (no_cond) 
@@ -177,9 +200,9 @@ module EX_MEMStage(
     input wire [2:0] op,
     input wire [4:0] funct5,  // funct3はここから取り出すこと
     
-    input wire wb_enable_in,
-    input wire [7:0] wb_dest_in,
-    input wire [31:0] wb_data_in,
+    // input wire wb_enable_in,
+    // input wire [7:0] wb_dest_in,
+    // input wire [31:0] wb_data_in,
     
     DataMemory.master m_data,  // DMは0クロックで中身の取得が出来ると仮定
     
@@ -192,6 +215,10 @@ module EX_MEMStage(
     output reg [7:0] wb_dest,
     output reg [31:0] wb_data
 );
+    wire wb_enable_in = wb_enable;
+    wire [7:0] wb_dest_in = wb_dest;
+    wire [31:0] wb_data_in = wb_data;
+
     // フォールスルー
     wire [31:0] data1 = (wb_enable_in == 1'b1 && src1 == wb_dest_in) ? wb_data_in : read1;
     wire [31:0] data2 = (wb_enable_in == 1'b1 && src2_or_imm8 == wb_dest_in) ? wb_data_in : read2;
@@ -253,13 +280,13 @@ module Core(
     wire [31:0] prog_counter;
 
     IFStage if_stage(
-        .clock, .reset, .m_instr, .instr_stall, .dadta_stall,
+        .clock, .reset, .m_instr, .instr_stall, .data_stall,
         .branch_taken, .new_pc, .instruction, .prog_counter
     );
 
     wire wb_enable;
     wire [7:0] wb_dest;
-    wire [7:0] wb_data;
+    wire [31:0] wb_data;
 
     wire [7:0] src1;
     wire [7:0] src2_or_imm8;
@@ -283,7 +310,7 @@ module Core(
     EX_MEMStage ex_mem_stage(
         .clock, .reset, .src1, .src2_or_imm8, .read1, .read2, .dest,
         .pc(prog_counter2), .imm_ext10, .imm_ext26, .op, .funct5,
-        .wb_enable_in(wb_enable), .wb_dest_in(wb_dest), .wb_data_in(wb_data),
+        // .wb_enable_in(wb_enable), .wb_dest_in(wb_dest), .wb_data_in(wb_data),
         .m_data, .instr_stall, .data_stall, .branch_taken, .new_pc,
         .wb_enable, .wb_dest, .wb_data
     );

@@ -15,26 +15,11 @@ module RegisterFile(
 
     reg [31:0] regs[255:0];
 
-    // always_ff @( posedge clock ) begin
-    //     if (src1 != 8'd255) begin
-    //         read1 <= regs[src1];
-    //     end else begin  // zero registerの処理
-    //         read1 <= 0;
-    //     end
-
-    //     if (src2 != 8'd255) begin
-    //         read2 <= regs[src2];
-    //     end else begin  // zero registerの処理
-    //         read2 <= 0;
-    //     end
-
-    //     if (write_enable) begin
-    //         regs[dest] <= write_data;
-    //     end
-    // end
-
-    assign read1 = (src1 == 8'd255) ? 0 : regs[src1];
-    assign read2 = (src2 == 8'd255) ? 0 : regs[src2];
+    // フォールスルー
+    assign read1 = (src1 == 8'd255) ? 0 : 
+                   ((write_enable && src1 == dest) ? write_data : regs[src1]);
+    assign read2 = (src2 == 8'd255) ? 0 :
+                   ((write_enable && src2 == dest) ? write_data : regs[src2]);
     always_ff @( posedge clock ) begin
         if (write_enable) begin
             regs[dest] <= write_data;

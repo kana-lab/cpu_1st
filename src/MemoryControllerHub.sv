@@ -1,7 +1,7 @@
 `timescale 1ps/1ps
 
 // `include "Memory.sv"
-// `include "MemoryInterface.sv"
+`include "MemoryInterface.sv"
 
 module MemoryControllerHub #(
     WORD_NUM = 512,
@@ -54,7 +54,7 @@ module MemoryControllerHub #(
     reg [31:0] mem_end;
     wire [31:0] mem_size = (INPUT_DATA_SEGMENT_SIZE + mem_end - mem_start) % INPUT_DATA_SEGMENT_SIZE;
     // 現在の指示がリングバッファからポップであるか否か
-    wire is_pop_queue = m_data.addr[31] & m_data.addr[0] & ~m_data.we;
+    wire is_pop_queue = m_data.addr[31] & m_data.addr[0] & ~m_data.we & m_data.en;
 
     always_ff @(posedge clock) begin
         if (reset) begin
@@ -88,9 +88,10 @@ module MemoryControllerHub #(
 
     // 現在の指示がリングバッファへのプッシュであるか否か
     // wire is_push_queue = address[31] & address[2] & write_enable;
-    wire is_uart_send = m_data.addr[31] & m_data.addr[2] & m_data.we;
+    wire is_uart_send = m_data.addr[31] & m_data.addr[2] & m_data.we & m_data.en;
 
-    wire [31:0] sendable_size = {31'b0, ~tx_busy};
+    wire not_tx_busy = ~tx_busy;
+    wire [31:0] sendable_size = {31'b0, not_tx_busy};
 
     // あらかじめsbufを分割しておく
     // wire [7:0] sbuf_to_byte[3:0];
@@ -109,6 +110,7 @@ module MemoryControllerHub #(
 
             if (is_uart_send & ~tx_busy) begin
                 sdata <= m_data.wd[7:0];
+                tx_start <= 1'b1;
             end
 
             // if (sbuf_start != sbuf_end && ~tx_busy) begin
@@ -132,7 +134,7 @@ module MemoryControllerHub #(
     end
 
     // メタステーブル状態だと危険かも？多分大丈夫だとは思うが。。。
-    wire mem_write_enable = m_data.we & ~m_data.addr[31];
+    wire mem_write_enable = m_data.we & ~m_data.addr[31] & m_data.en;
     wire [31:0] mem_address = (m_data.addr[31]) ? mem_start + INPUT_DATA_SEGMENT : m_data.addr;
     wire [31:0] mem_write_data = m_data.wd;
     wire mem_dma_enable = instr_ready | mem_ready;
@@ -146,10 +148,11 @@ module MemoryControllerHub #(
         .dma_address(mem_dma_address), .dma_data(mem_dma_data), .instr_address(m_instr.addr), .instr(m_instr.instr)
     );
 
-    wire [31:0] uart_recv = (address[0]) ? mem_read_data : 0;
-    wire [31:0] uart_recv_size = (address[1]) ? mem_size : 0;
-    wire [31:0] uart_sendable = (address[3]) ? sendable_size : 0;
+    wire [31:0] uart_recv = (m_data.addr[0]) ? mem_read_data : 0;
+    wire [31:0] uart_recv_size = (m_data.addr[1]) ? mem_size : 0;
+    wire [31:0] uart_sendable = (m_data.addr[3]) ? sendable_size : 0;
     wire [31:0] mmio_res = uart_recv | uart_recv_size | uart_sendable;
-    assign m_data.rd = (address[31]) ?  mmio_res : mem_read_data;
+    assign m_data.rd = (m_data.addr[31]) ?  mmio_res : mem_read_data;
     assign m_data.stall = 0;
+    assign m_instr.stall = 0;
 endmodule

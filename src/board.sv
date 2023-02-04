@@ -47,8 +47,8 @@ module Board #(parameter CLK_PER_HALF_BIT = 10) (
     //     clock, cpu_reset, write_enable, address, write_data,
     //     read_data, instr_address, instr, led[7:0]
     // );
-    InstructionMemory m_instr;
-    DataMemory m_data;
+    InstructionMemory m_instr();
+    DataMemory m_data();
     wire cpu_reset = ~program_loaded;
     Core core(clock, cpu_reset, m_instr, m_data);
     assign led[7:0] = 8'b10101010;

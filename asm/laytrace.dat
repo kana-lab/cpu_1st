@@ -1,0 +1,35 @@
+// # とりあえずエコーサーバーを作ってみる
+// MAIN:
+//     subi r10, zero, 14  # 受信したデータ数のアドレス
+//     subi r11, zero, 15  # 受信したデータのアドレス
+//     subi r12, zero, 8   # 送信可能か否かのアドレス
+//     subi r13, zero, 12  # 送信するデータのアドレス
+// LOOP:
+//     lw r0, r10  # 受信したデータ数の読み出し
+//     beq r0, zero, LOOP
+//     lw r1, r11  # 受信したデータの読み出し
+//     addi r5, zero, 4
+// LOOP2:
+//     lw r2, r12  # 送信可能か否かの読み出し
+//     beq r2, zero, LOOP2
+//     sw r1, r13  # 送信
+//     subi r5, r5, 1
+//     beq r5, zero, LOOP
+//     srli r1, r1, 8
+//     j LOOP2
+220aff0e
+220bff0f
+220cff08
+220dff0c
+e000000a
+87ff00ff
+e001000b
+2105ff04
+e002000c
+87ff02ff
+c000010d
+22050501
+87f805ff
+28010108
+a3fffffa
+
