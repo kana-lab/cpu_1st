@@ -1,7 +1,7 @@
 `timescale 1ps/1ps
-`include "UartTx.sv"
-`include "UartRx.sv"
-`include "top.v"
+// `include "UartTx.sv"
+// `include "UartRx.sv"
+// `include "top.v"
 
 // コードサイズが分からないとダメ
 // -> 定数にしてサボる

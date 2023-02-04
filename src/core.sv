@@ -1,5 +1,5 @@
 `timescale 1ps / 1ps
-`include "MemoryInterface.sv"
+// `include "MemoryInterface.sv"
 
 
 module IFStage(
@@ -32,7 +32,7 @@ module IFStage(
             prog_counter <= 0;
         end else begin
             pc <= next_pc;
-            isntruction <= (branch_taken) ? NOP : m_instr.instr;
+            instruction <= (branch_taken) ? NOP : m_instr.instr;
             prog_counter <= pc;
         end
     end
@@ -138,14 +138,27 @@ module BranchUnit(
     output wire branch_taken,
     output wire [31:0] new_pc
 );
-    wire beq_stsfy = (funct[0]) ? ((val1 == val2) ? 1 : 0) : 0;
-    wire blt_stsfy = (funct[1]) ? ((val1 < val2) ? 1 : 0) : 0;
-    wire ble_stsfy = (funct[2]) ? ((val1 <= val2) ? 1 : 0) : 0;
+    wire beq_stsfy = (funct3[0]) ? ((val1 == val2) ? 1 : 0) : 0;
+    wire blt_stsfy = (funct3[1]) ? ((val1 < val2) ? 1 : 0) : 0;
+    wire ble_stsfy = (funct3[2]) ? ((val1 <= val2) ? 1 : 0) : 0;
     wire stsfy = beq_stsfy | blt_stsfy | ble_stsfy;
     assign branch_taken = (stsfy | no_cond) & en;
     assign new_pc = (no_cond) 
                     ? (funct3[0] ? val2 : (pc + imm_ext26))
                     : (stsfy ? (pc + imm_ext10) : 0);
+endmodule
+
+
+module FPU (
+    input wire [31:0] val1,
+    input wire [31:0] val2,
+    input wire [4:0] funct,
+    input wire enable,
+    output wire stall,
+    output wire [31:0] result
+);
+    assign stall = 0;
+    assign result = 32'hffffffff;
 endmodule
 
 
@@ -229,7 +242,7 @@ module Core(
     input wire reset,
 
     InstructionMemory.master m_instr,
-    DataMemory.master m_data,
+    DataMemory.master m_data
 );
     wire instr_stall;
     wire data_stall;

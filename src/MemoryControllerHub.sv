@@ -1,13 +1,13 @@
 `timescale 1ps/1ps
 
 // `include "Memory.sv"
-`include "MemoryInterface.sv"
+// `include "MemoryInterface.sv"
 
 module MemoryControllerHub #(
     WORD_NUM = 512,
     CODE_SEGMENT = 0,
     INPUT_DATA_SEGMENT = 256,
-    INPUT_DATA_SEGMENT_SIZE = 256,
+    INPUT_DATA_SEGMENT_SIZE = 256
 ) (
     input wire clock,
     input wire reset,
