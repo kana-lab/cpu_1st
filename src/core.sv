@@ -162,8 +162,8 @@ module BranchUnit(
     output wire [31:0] new_pc
 );
     wire beq_stsfy = (funct3[0]) ? ((val1 == val2) ? 1'b1 : 0) : 0;
-    wire blt_stsfy = (funct3[1]) ? ((val1 < val2) ? 1'b1 : 0) : 0;
-    wire ble_stsfy = (funct3[2]) ? ((val1 <= val2) ? 1'b1 : 0) : 0;
+    wire blt_stsfy = (funct3[1]) ? (($signed(val1) < $signed(val2)) ? 1'b1 : 0) : 0;
+    wire ble_stsfy = (funct3[2]) ? (($signed(val1) <= $signed(val2)) ? 1'b1 : 0) : 0;
     wire stsfy = beq_stsfy | blt_stsfy | ble_stsfy;
     assign branch_taken = (stsfy | no_cond) & en;
     assign new_pc = (no_cond) 

@@ -10,7 +10,7 @@
 
 module Server # (
     CLOCK_PER_HALF_BIT = 10,
-    INSTR_CODE_SIZE = 32'd15,
+    INSTR_CODE_SIZE = 32'd60,
     DATA_CODE_SIZE = 3
 ) (
     input wire clock,
@@ -22,7 +22,7 @@ module Server # (
     reg [31:0] data_buf[DATA_CODE_SIZE - 1:0];
 
     initial begin
-        $readmemh("D:/cpu_ex/cpu_1st/asm/laytrace.dat", instr_buf);
+        $readmemh("D:/cpu_ex/cpu_1st/asm/pipeline_test.dat", instr_buf);
         $readmemh("D:/cpu_ex/cpu_1st/asm/lsd.dat", data_buf);
     end
 
@@ -117,7 +117,7 @@ module Server # (
         $display("state changed: %h", state);
     end
 
-    always @(rx_ready) begin
+    always @(posedge rx_ready) begin
         $display("%h", rdata);
     end
 endmodule
