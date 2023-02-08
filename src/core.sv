@@ -23,14 +23,14 @@ module IFStage(
 
     assign instr_stall = m_instr.stall;
     wire stall = m_instr.stall | data_stall;
-    wire [31:0] next_pc = (branch_taken) ? new_pc : ((stall) ? pc : pc + 1);
+    wire [31:0] next_pc = (branch_taken) ? new_pc : pc + 1;
 
     always_ff @( posedge clock ) begin
         if (reset) begin
             pc <= 0;
             instruction <= NOP;
             prog_counter <= 0;
-        end else begin
+        end else if (~stall) begin
             pc <= next_pc;
             instruction <= (branch_taken) ? NOP : m_instr.instr;
             prog_counter <= pc;
@@ -178,10 +178,12 @@ module FPU (
     input wire [4:0] funct,
     input wire enable,
     output wire stall,
-    output wire [31:0] result
+    output wire [31:0] result,
+    output wire [31:0] result_comb
 );
     assign stall = 0;
     assign result = 32'hffffffff;
+    assign result_comb = 32'haaaaaaaa;
 endmodule
 
 
@@ -211,17 +213,15 @@ module EX_MEMStage(
     output wire branch_taken,
     output wire [31:0] new_pc,
     
-    output reg wb_enable,
-    output reg [7:0] wb_dest,
-    output reg [31:0] wb_data
+    // FPU, メモリはWBステージを飛ばすというちょっと面倒なことをする
+    // そのためここのoutputのみwireにしてある
+    output wire wb_enable,
+    output wire [7:0] wb_dest,
+    output wire [31:0] wb_data
 );
-    wire wb_enable_in = wb_enable;
-    wire [7:0] wb_dest_in = wb_dest;
-    wire [31:0] wb_data_in = wb_data;
-
     // フォールスルー
-    wire [31:0] data1 = (wb_enable_in == 1'b1 && src1 == wb_dest_in) ? wb_data_in : read1;
-    wire [31:0] data2 = (wb_enable_in == 1'b1 && src2_or_imm8 == wb_dest_in) ? wb_data_in : read2;
+    wire [31:0] data1 = (wb_enable == 1'b1 && src1 == wb_dest) ? wb_data : read1;
+    wire [31:0] data2 = (wb_enable == 1'b1 && src2_or_imm8 == wb_dest) ? wb_data : read2;
     
     // ALUの宣言
     wire [31:0] alu_result;
@@ -230,10 +230,11 @@ module EX_MEMStage(
     
     // FPUの宣言
     wire [31:0] fpu_result;
+    wire [31:0] fpu_comb_result;
     wire fpu_stall;
     FPU fpu(
         .val1(data1), .val2(data2), .funct(funct5), .enable(~op[2] & op[1]),
-        .stall(fpu_stall), .result(fpu_result)
+        .stall(fpu_stall), .result(fpu_result), .result_comb(fpu_comb_result)
     );
     
     // データメモリとの接続
@@ -250,17 +251,39 @@ module EX_MEMStage(
     );
     
     // WBする結果の選択
-    wire [31:0] ex_result = (op[2]) ? m_data.rd : ((op[1]) ? fpu_result : alu_result);
+    // wire [31:0] ex_result = (op[2]) ? m_data.rd : ((op[1]) ? fpu_result : alu_result);
     // stallするか否か
     assign data_stall = fpu_stall | m_data.stall;
     // WBするか否か
-    wire wb_enable_w = ((~op[2]) | (op[1] & op[0])) & (~data_stall);
+    // wire wb_enable_w = ((~op[2]) | (op[1] & op[0])) & (~data_stall);
+
+
+    // これらのレジスタにはストールなしで結果が返るもののみを格納する
+    reg reg_wb_enable;
+    reg [7:0] reg_wb_dest;
+    reg [31:0] reg_wb_data;
+
+    reg stall_1clock_behind;
+    reg op2_before_stall;
+    reg [7:0] dest_before_stall;
     
     always_ff @( posedge clock ) begin
-        wb_dest <= dest;
-        wb_data <= ex_result;
-        wb_enable <= wb_enable_w;
+        if (~data_stall) begin
+            reg_wb_dest <= dest;
+            reg_wb_enable <= (~op[2]) | (op[1] & op[0]);
+            op2_before_stall <= op[2];
+        end
+
+        reg_wb_data <= (op[2]) ? m_data.rd : ((op[1]) ? fpu_comb_result : alu_result);
+        stall_1clock_behind <= data_stall;
     end
+
+    // ストールが必要なものの結果を格納
+    wire [31:0] ex_stall_result = (op2_before_stall) ? m_data.rd : fpu_result;
+    wire forwarding = ~data_stall & stall_1clock_behind;
+    assign wb_enable = ~data_stall & reg_wb_enable;
+    assign wb_data = (forwarding) ? ex_stall_result : reg_wb_data;
+    assign wb_dest = reg_wb_dest;
 endmodule
 
 

@@ -11,7 +11,20 @@ module Board #(parameter CLK_PER_HALF_BIT = 10) (
     input wire resetn,
     input wire rxd,
     output wire txd,
-    output wire [15:0] led
+    output wire [15:0] led,
+
+    output wire bram_en,
+    output wire bram_we,
+    output wire [31:0] bram_addr,
+    output wire [31:0] bram_wd,
+    input wire [31:0] bram_rd,
+
+    input wire ddr2_stall,
+    input wire [31:0] ddr2_rd,
+    output wire ddr2_en,
+    output wire ddr2_we,
+    output wire [31:0] ddr2_addr,
+    output wire [31:0] ddr2_wd
 );
     wire reset = ~resetn;
 
@@ -50,18 +63,44 @@ module Board #(parameter CLK_PER_HALF_BIT = 10) (
     InstructionMemory m_instr();
     DataMemory m_data();
     wire cpu_reset = ~program_loaded;
-    Core core(clock, cpu_reset, m_instr, m_data);
+    Core core(clock, cpu_reset, m_instr.master, m_data);
     assign led[7:0] = 8'b10101010;
 
     wire w_tx_start2;
     wire [7:0] w_sdata2;
+    DataMemory ddr2();
     MemoryControllerHub mch(
-        clock, reset, instr_ready, mem_ready, data,
+        clock, reset, /*instr_ready,*/ mem_ready, data,
         // write_enable, address, write_data, read_data, instr_address, instr,
-        m_data, m_instr,
-        w_tx_start2, w_sdata2, tx_busy, led[15:8]
+        m_data,// m_instr,
+        w_tx_start2, w_sdata2, tx_busy, ddr2.master//, led[15:8]
     );
 
     assign tx_start = w_tx_start1 | w_tx_start2;
     assign sdata = (w_tx_start1) ? w_sdata1 : w_sdata2;
+    assign led[15:8] = 8'hab;
+
+    reg [31:0] counter;
+    assign bram_en = instr_ready | program_loaded;
+    assign bram_we = instr_ready;
+    assign bram_wd = data;
+    assign bram_addr = (instr_ready) ? counter : m_instr.addr;
+    assign m_instr.instr = bram_rd;
+    assign m_instr.stall = 0;
+
+    always_ff @( posedge clock ) begin
+        if (reset) begin
+            counter <= 0;
+        end else begin
+            if (instr_ready)
+                counter <= counter + 1;
+        end
+    end
+
+    assign ddr2_en = ddr2.en;
+    assign ddr2_we = ddr2.we;
+    assign ddr2_addr = ddr2.addr;
+    assign ddr2_wd = ddr2.wd;
+    assign ddr2.stall = ddr2_stall;
+    assign ddr2.rd = ddr2_rd;
 endmodule

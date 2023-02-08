@@ -122,6 +122,57 @@ module Server # (
     end
 endmodule
 
+module DDR2(
+    input wire clock,
+    input wire reset,
+
+    DataMemory.slave request
+);
+    reg [31:0] m[511:0];
+    reg [7:0] stall_count;
+    reg stall;
+    reg [31:0] result;
+    assign request.stall = stall;
+    assign request.rd = result;
+
+    always_ff @(posedge clock) begin
+        if (reset) begin
+            stall_count <= 0;
+            stall <= 0;
+            result <= 0;
+        end else begin
+            if (stall) begin
+                if (stall_count == 8'd10) begin
+                    stall_count <= 0;
+                    stall <= 0;
+                end else begin
+                    stall_count++;
+                end
+            end else if (request.en) begin
+                stall <= 1'b1;
+                result <= m[request.addr];
+                if (request.we)
+                    m[request.addr] <= request.wd;
+            end
+        end
+    end
+endmodule
+
+module Bram(
+    input wire clock,
+    input wire reset,
+
+    DataMemory.slave request
+);
+    reg [31:0] m[511:0];
+    assign request.rd = m[request.addr];
+    assign request.stall = 0;
+    always_ff @( posedge clock ) begin
+        if (request.en & request.we)
+            m[request.addr] <= request.wd;
+    end
+endmodule
+
 module pipeline_sim;
     reg clock;
     always begin
@@ -134,7 +185,7 @@ module pipeline_sim;
     reg resetn;  // for top
     initial begin
         resetn <= 0;
-        #200;
+        #100;
         resetn <= 1;
         #1000000;
         $finish();
@@ -143,7 +194,7 @@ module pipeline_sim;
     reg reset;  // for Server
     initial begin
         reset <= 1;
-        #100;
+        #500;
         reset <= 0;
         #1000000;
         $finish();
@@ -155,5 +206,11 @@ module pipeline_sim;
 
     Server server(.clock, .reset, .rxd(txd), .txd(rxd));
 
-    top t(clock, resetn, rxd, txd, led);
+    DataMemory bram_bus();
+    Bram bram(.clock, .reset, .request(bram_bus));
+    DataMemory ddr2_bus();
+    DDR2 ddr2(.clock, .reset, .request(ddr2_bus));
+    top t(clock, resetn, rxd, txd, led,
+    bram_bus.en, bram_bus.we, bram_bus.addr, bram_bus.wd, bram_bus.rd,
+    ddr2_bus.stall, ddr2_bus.rd, ddr2_bus.en, ddr2_bus.we, ddr2_bus.addr, ddr2_bus.wd);
 endmodule

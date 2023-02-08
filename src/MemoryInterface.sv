@@ -33,3 +33,11 @@ interface InstructionMemory;
         output stall, instr
     );
 endinterface //InstructionMemory
+
+// interface BramPort;
+//     wire en;
+//     wire we;
+//     wire [31:0] addr;
+//     wire [31:0] wd;
+//     wire [31:0] rd;
+// endinterface

@@ -1,7 +1,9 @@
 `timescale 1ps/1ps
 
 // UARTのレシーバやセンダーはDmaControllerの外部に置くことにする
-module DmaController (
+module DmaController # (
+    INTERVAL_0x99 = 100
+) (
     input wire clock,
     input wire reset,
 
@@ -41,28 +43,38 @@ module DmaController (
     // プログラムサイズ(little endian)
     reg [31:0] program_size;
 
+    // 0x99を送り続ける間隔
+    reg [7:0] counter;
+
     always_ff @(posedge clock) begin
         if (reset) begin
             state <= 4'b1;
             n_byte <= 4'b1;
             program_size <= 0;
+            counter <= 0;
 
             tx_start <= 0;
             instr_ready <= 0;
             mem_ready <= 0;
         end else begin
-            if (tx_start & ~state[0]) tx_start <= 0;
+            if (tx_start) tx_start <= 0;
             if (instr_ready) instr_ready <= 0;
             if (mem_ready) mem_ready <= 0;
 
             // 最初に0x99を繰り返し送り、PC側が反応を示すのを待つ
             // ...と思ったが、PCとのstart bitの認識の齟齬が起きたら死ぬのでやめる
+            // [追記] これを防ぐため間隔を開けて0x99を送り続けることにした
             if (state[0]) begin
-                tx_start <= 1'b1;
-                sdata <= 8'h99;
-                state <= next_state;
-                // if (rx_ready)
-                //     state <= next_state;
+                if (counter >= INTERVAL_0x99 && ~tx_busy) begin
+                    tx_start <= 1'b1;
+                    sdata <= 8'h99;
+                    counter <= 0;
+                end else begin
+                    counter <= counter + 1;
+                end
+                // state <= next_state;
+                if (rx_ready)
+                    state <= next_state;
             end
 
             if (state[2] && program_size == 0 && ~tx_busy) begin
