@@ -13,27 +13,38 @@ module IFStage(
     input wire branch_taken,
     input wire [31:0] new_pc,
 
-    output reg [31:0] instruction,
-    output reg [31:0] prog_counter
+    output wire [31:0] instruction,
+    output reg [31:0] prev_pc
 );
     localparam NOP = 32'h21000000;  // addi r0, r0, 0
 
-    reg [31:0] pc;
-    assign m_instr.addr = pc;
-
+    reg reset_1clock_behind;
+    reg flash_1clock_behind;
+    reg [31:0] new_pc_1clock_behind;
+    assign instruction = (reset_1clock_behind) ? NOP : ((flash_1clock_behind) ? NOP : m_instr.instr);
     assign instr_stall = m_instr.stall;
     wire stall = m_instr.stall | data_stall;
-    wire [31:0] next_pc = (branch_taken) ? new_pc : pc + 1;
+
+    reg [31:0] pc;
+    wire [31:0] true_pc = (stall) ? prev_pc : ((flash_1clock_behind) ? new_pc_1clock_behind : pc);
+    assign m_instr.addr = true_pc;
+
+
+    wire [31:0] next_pc = true_pc + 1;//(branch_taken) ? new_pc + 1 : pc + 1;
 
     always_ff @( posedge clock ) begin
+        reset_1clock_behind <= reset;
+        flash_1clock_behind <= branch_taken;
+        new_pc_1clock_behind <= new_pc;
+        prev_pc <= true_pc;
+
         if (reset) begin
             pc <= 0;
-            instruction <= NOP;
-            prog_counter <= 0;
+            // prev_pc <= 0;
+            // instruction <= NOP;
         end else if (~stall) begin
             pc <= next_pc;
-            instruction <= (branch_taken) ? NOP : m_instr.instr;
-            prog_counter <= pc;
+            // instruction <= (branch_taken) ? NOP : m_instr.instr;
         end
     end
 endmodule
@@ -172,7 +183,10 @@ module BranchUnit(
 endmodule
 
 
+// wrapper for actual fpu
 module FPU (
+    input wire clock,
+
     input wire [31:0] val1,
     input wire [31:0] val2,
     input wire [4:0] funct,
@@ -184,6 +198,13 @@ module FPU (
     assign stall = 0;
     assign result = 32'hffffffff;
     assign result_comb = 32'haaaaaaaa;
+
+    // wire valid, idle;
+    // fpu fpu_i(
+    //     .clk(clock), .bram_clk(clock), .funct, .x1(val1), .x2(val2),
+    //     .y(result), .inst_y(result_comb), .en(enable), .valid, .idle
+    // );
+    // assign stall = idle | (enable & ~(funct[4] & funct[0]));
 endmodule
 
 
@@ -206,7 +227,7 @@ module EX_MEMStage(
     // input wire [7:0] wb_dest_in,
     // input wire [31:0] wb_data_in,
     
-    DataMemory.master m_data,  // DMは0クロックで中身の取得が出来ると仮定
+    DataMemoryWithMMIO.master m_data,  // DMは0クロックで中身の取得が出来ると仮定
     
     input wire instr_stall,
     output wire data_stall,
@@ -232,8 +253,8 @@ module EX_MEMStage(
     wire [31:0] fpu_result;
     wire [31:0] fpu_comb_result;
     wire fpu_stall;
-    FPU fpu(
-        .val1(data1), .val2(data2), .funct(funct5), .enable(~op[2] & op[1]),
+    FPU fpu_i(
+        .clock, .val1(data1), .val2(data2), .funct(funct5), .enable(~op[2] & op[1]),
         .stall(fpu_stall), .result(fpu_result), .result_comb(fpu_comb_result)
     );
     
@@ -274,7 +295,7 @@ module EX_MEMStage(
             op2_before_stall <= op[2];
         end
 
-        reg_wb_data <= (op[2]) ? m_data.rd : ((op[1]) ? fpu_comb_result : alu_result);
+        reg_wb_data <= (op[2]) ? m_data.rd_inst : ((op[1]) ? fpu_comb_result : alu_result);
         stall_1clock_behind <= data_stall;
     end
 
@@ -292,7 +313,7 @@ module Core(
     input wire reset,
 
     InstructionMemory.master m_instr,
-    DataMemory.master m_data
+    DataMemoryWithMMIO.master m_data
 );
     wire instr_stall;
     wire data_stall;
@@ -304,7 +325,7 @@ module Core(
 
     IFStage if_stage(
         .clock, .reset, .m_instr, .instr_stall, .data_stall,
-        .branch_taken, .new_pc, .instruction, .prog_counter
+        .branch_taken, .new_pc, .instruction, .prev_pc(prog_counter)
     );
 
     wire wb_enable;

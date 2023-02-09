@@ -41,3 +41,23 @@ endinterface //InstructionMemory
 //     wire [31:0] wd;
 //     wire [31:0] rd;
 // endinterface
+
+interface DataMemoryWithMMIO;
+    wire en;
+    wire stall;
+    wire we;
+    wire [31:0] addr;
+    wire [31:0] wd;
+    wire [31:0] rd;
+    wire [31:0] rd_inst;
+
+    modport master (
+        input stall, rd, rd_inst,
+        output en, we, addr, wd
+    );
+
+    modport slave (
+        input en, we, addr, wd,
+        output stall, rd, rd_inst
+    );
+endinterface

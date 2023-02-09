@@ -13,11 +13,11 @@ module Board #(parameter CLK_PER_HALF_BIT = 10) (
     output wire txd,
     output wire [15:0] led,
 
-    output wire bram_en,
-    output wire bram_we,
-    output wire [31:0] bram_addr,
-    output wire [31:0] bram_wd,
-    input wire [31:0] bram_rd,
+    // output wire bram_en,
+    // output wire bram_we,
+    // output wire [31:0] bram_addr,
+    // output wire [31:0] bram_wd,
+    // input wire [31:0] bram_rd,
 
     input wire ddr2_stall,
     input wire [31:0] ddr2_rd,
@@ -61,7 +61,7 @@ module Board #(parameter CLK_PER_HALF_BIT = 10) (
     //     read_data, instr_address, instr, led[7:0]
     // );
     InstructionMemory m_instr();
-    DataMemory m_data();
+    DataMemoryWithMMIO m_data();
     wire cpu_reset = ~program_loaded;
     Core core(clock, cpu_reset, m_instr.master, m_data);
     assign led[7:0] = 8'b10101010;
@@ -81,12 +81,20 @@ module Board #(parameter CLK_PER_HALF_BIT = 10) (
     assign led[15:8] = 8'hab;
 
     reg [31:0] counter;
-    assign bram_en = instr_ready | program_loaded;
-    assign bram_we = instr_ready;
-    assign bram_wd = data;
-    assign bram_addr = (instr_ready) ? counter : m_instr.addr;
+    // assign bram_en = instr_ready | program_loaded;
+    // assign bram_we = instr_ready;
+    // assign bram_wd = data;
+    // assign bram_addr = (instr_ready) ? counter : m_instr.addr;
+    // assign m_instr.instr = bram_rd;
+    // assign m_instr.stall = 0;
+    wire bram_en = instr_ready | program_loaded;
+    wire bram_we = instr_ready;
+    wire [31:0] bram_wd = data;
+    wire [31:0] bram_addr = (instr_ready) ? counter : m_instr.addr;
+    wire [31:0] bram_rd;
     assign m_instr.instr = bram_rd;
     assign m_instr.stall = 0;
+    Bram bram(clock, reset, bram_en, bram_we, bram_addr, bram_wd, bram_rd);
 
     always_ff @( posedge clock ) begin
         if (reset) begin

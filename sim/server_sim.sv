@@ -158,7 +158,7 @@ module DDR2(
     end
 endmodule
 
-module Bram(
+module BramSim(
     input wire clock,
     input wire reset,
 
@@ -206,11 +206,11 @@ module pipeline_sim;
 
     Server server(.clock, .reset, .rxd(txd), .txd(rxd));
 
-    DataMemory bram_bus();
-    Bram bram(.clock, .reset, .request(bram_bus));
+    // DataMemory bram_bus();
+    // BramSim bram(.clock, .reset, .request(bram_bus.slave));
     DataMemory ddr2_bus();
     DDR2 ddr2(.clock, .reset, .request(ddr2_bus));
     top t(clock, resetn, rxd, txd, led,
-    bram_bus.en, bram_bus.we, bram_bus.addr, bram_bus.wd, bram_bus.rd,
+    //bram_bus.en, bram_bus.we, bram_bus.addr, bram_bus.wd, bram_bus.rd,
     ddr2_bus.stall, ddr2_bus.rd, ddr2_bus.en, ddr2_bus.we, ddr2_bus.addr, ddr2_bus.wd);
 endmodule

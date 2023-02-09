@@ -104,7 +104,7 @@ module MemoryControllerHub (
     // [MMIOのアセンブリ例]
     //     subi r0, zero, 15
     //     lw r0, r0
-    DataMemory.slave m_data,
+    DataMemoryWithMMIO.slave m_data,
 
     // UartTxとの接続を表す信号線
     // DmaControllerもUartTxを利用するが、利用時期が重ならないので安全
@@ -199,9 +199,9 @@ module MemoryControllerHub (
     assign ddr2.wd = m_data.wd;
     assign ddr2.addr = m_data.addr;
     assign m_data.stall = ddr2.stall;
-    reg stall_1clock_behind;
-    always_ff @( posedge clock )
-        stall_1clock_behind <= ddr2.stall;
+    // reg stall_1clock_behind;
+    // always_ff @( posedge clock )
+    //     stall_1clock_behind <= ddr2.stall & ddr2.en;
     
     // wire mem_write_enable = m_data.we & ~m_data.addr[31] & m_data.en;
     // wire [31:0] mem_address = (m_data.addr[31]) ? mem_start + INPUT_DATA_SEGMENT : m_data.addr;
@@ -221,7 +221,9 @@ module MemoryControllerHub (
     wire [31:0] uart_recv_size = (m_data.addr[1]) ? mem_size : 0;
     wire [31:0] uart_sendable = (m_data.addr[3]) ? sendable_size : 0;
     wire [31:0] mmio_res = uart_recv | uart_recv_size | uart_sendable;
-    assign m_data.rd = (~stall_1clock_behind & m_data.addr[31]) ?  mmio_res : ddr2.rd;
+    // assign m_data.rd_inst = (m_data.addr[31]) ?  mmio_res : ddr2.rd;
+    assign m_data.rd_inst = mmio_res;
+    assign m_data.rd = ddr2.rd;
     // assign m_data.stall = 0;
     // assign m_instr.stall = 0;
 endmodule
