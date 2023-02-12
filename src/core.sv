@@ -1,5 +1,5 @@
 `timescale 1ps / 1ps
-`include "MemoryInterface.sv"
+// `include "MemoryInterface.sv"
 
 
 module IFStage(
@@ -14,7 +14,11 @@ module IFStage(
     input wire [31:0] new_pc,
 
     output wire [31:0] instruction,
-    output reg [31:0] prev_pc
+    output reg [31:0] prev_pc,
+
+    output wire [15:0] led,
+    input wire sw_high,
+    input wire sw_instr
 );
     localparam NOP = 32'h21000000;  // addi r0, r0, 0
 
@@ -28,6 +32,9 @@ module IFStage(
     reg [31:0] pc;
     wire [31:0] true_pc = (stall) ? prev_pc : ((flash_1clock_behind) ? new_pc_1clock_behind : pc);
     assign m_instr.addr = true_pc;
+
+    assign led = (sw_instr) ? (sw_high ? instruction[31:16] : instruction[15:0]) :
+                              (sw_high ? true_pc[31:16] : true_pc[15:0]);
 
 
     wire [31:0] next_pc = true_pc + 1;//(branch_taken) ? new_pc + 1 : pc + 1;
@@ -72,8 +79,13 @@ module IDStage(
     output reg [31:0] imm_ext10,
     output reg [31:0] imm_ext26,
     output reg [2:0] op,
-    output reg [4:0] funct5  // funct3はEXMEMステージでここから取り出すこと
+    output reg [4:0] funct5,  // funct3はEXMEMステージでここから取り出すこと
+
+    output wire [15:0] led,
+    input wire sw_high,
+    input wire [7:0] reg_num
 );
+    // assign led = 16'h8888;
     // opの単離
     wire [2:0] op_w;
     wire [28:0] body;
@@ -92,7 +104,7 @@ module IDStage(
     RegisterFile rf(
         .clock, .src1(src1_w), .src2(src2_w), .dest(wb_dest),
         .write_data(wb_data), .write_enable(wb_enable),
-        .read1(read1_w), .read2(read2_w)
+        .read1(read1_w), .read2(read2_w), .led, .sw_high, .reg_num
     );
 
     // ブランチ
@@ -109,7 +121,7 @@ module IDStage(
         // imm_ext10 <= (offset[9]) ? {22'h3fffff, offset} : {22'b0, offset};
         // imm_ext26 <= (long_offset[25]) ? {6'h3f, long_offset} : {6'b0, long_offset};
 
-        if (~stall) begin
+        if (~stall | reset) begin
             src1 <= src1_w;
             src2_or_imm8 <= src2_w;
             dest <= dest_w;
@@ -184,27 +196,49 @@ endmodule
 
 
 // wrapper for actual fpu
-module FPU (
+module CoreFpuInterconnect (
     input wire clock,
+    input wire reset,
 
     input wire [31:0] val1,
     input wire [31:0] val2,
     input wire [4:0] funct,
-    input wire enable,
+    input wire enable,  // data_stall中、reset中にONにならない保証あり
     output wire stall,
     output wire [31:0] result,
     output wire [31:0] result_comb
 );
-    assign stall = 0;
-    assign result = 32'hffffffff;
-    assign result_comb = 32'haaaaaaaa;
+    // assign stall = 0;
+    // assign result = 32'hffffffff;
+    // assign result_comb = 32'haaaaaaaa;
 
-    // wire valid, idle;
-    // fpu fpu_i(
-    //     .clk(clock), .bram_clk(clock), .funct, .x1(val1), .x2(val2),
-    //     .y(result), .inst_y(result_comb), .en(enable), .valid, .idle
-    // );
-    // assign stall = idle | (enable & ~(funct[4] & funct[0]));
+    reg [31:0] val1_saved;
+    reg [31:0] val2_saved;
+    always_ff @( posedge clock ) begin
+        if (reset) begin
+            val1_saved <= 32'h3f800000;
+            val2_saved <= 32'h3f800000;
+        end else if (enable) begin
+            val1_saved <= val1;
+            val2_saved <= val2;
+        end
+    end
+
+    wire valid, idle;
+    wire [31:0] x1 = (enable) ? val1 : val1_saved;
+    wire [31:0] x2 = (enable) ? val2 : val2_saved;
+    fpu fpu_i(
+        .clk(clock), .bram_clk(clock), .funct, .x1, .x2,
+        .y(result), .inst_y(result_comb), .en(enable), .valid, .idle
+    );  // enの&必要？
+
+    // reg right_after_en;
+    // always_ff @( posedge clock ) begin
+    //     // flessを除外する
+    //     right_after_en <= enable & ~(funct[4] & funct[0]) & idle;
+    // end
+
+    assign stall = ~idle;// | right_after_en;
 endmodule
 
 
@@ -238,8 +272,13 @@ module EX_MEMStage(
     // そのためここのoutputのみwireにしてある
     output wire wb_enable,
     output wire [7:0] wb_dest,
-    output wire [31:0] wb_data
+    output wire [31:0] wb_data,
+
+    output wire [15:0] led,
+    input wire sw_stall
 );
+    assign led = 16'hffff;
+
     // フォールスルー
     wire [31:0] data1 = (wb_enable == 1'b1 && src1 == wb_dest) ? wb_data : read1;
     wire [31:0] data2 = (wb_enable == 1'b1 && src2_or_imm8 == wb_dest) ? wb_data : read2;
@@ -252,21 +291,22 @@ module EX_MEMStage(
     // FPUの宣言
     wire [31:0] fpu_result;
     wire [31:0] fpu_comb_result;
+    wire fpu_enable = ~op[2] & op[1] & ~data_stall & ~reset;  // ここも怪しかったから直した
     wire fpu_stall;
-    FPU fpu_i(
-        .clock, .val1(data1), .val2(data2), .funct(funct5), .enable(~op[2] & op[1]),
+    CoreFpuInterconnect fpu_i(
+        .clock, .reset, .val1(data1), .val2(data2), .funct(funct5), .enable(fpu_enable),
         .stall(fpu_stall), .result(fpu_result), .result_comb(fpu_comb_result)
     );
     
     // データメモリとの接続
-    assign m_data.en = op[2] & op[1];
+    assign m_data.en = op[2] & op[1] & ~data_stall & ~reset;  // これまずそう。。。=>直した
     assign m_data.we = ~op[0];
     assign m_data.addr = data2;
     assign m_data.wd = data1;
 
     // ブランチユニットの宣言
     BranchUnit bu(
-        .en(op[2] & ~op[1]), .no_cond(op[0]), .funct3(funct5[4:2]),
+        .en(op[2] & ~op[1] & ~data_stall), .no_cond(op[0]), .funct3(funct5[4:2]),
         .val1(data1), .val2(data2), .imm_ext10, .imm_ext26, .pc,
         .branch_taken, .new_pc
     );
@@ -274,7 +314,7 @@ module EX_MEMStage(
     // WBする結果の選択
     // wire [31:0] ex_result = (op[2]) ? m_data.rd : ((op[1]) ? fpu_result : alu_result);
     // stallするか否か
-    assign data_stall = fpu_stall | m_data.stall;
+    assign data_stall = fpu_stall | m_data.stall | sw_stall;
     // WBするか否か
     // wire wb_enable_w = ((~op[2]) | (op[1] & op[0])) & (~data_stall);
 
@@ -313,7 +353,10 @@ module Core(
     input wire reset,
 
     InstructionMemory.master m_instr,
-    DataMemoryWithMMIO.master m_data
+    DataMemoryWithMMIO.master m_data,
+
+    output wire [15:0] led,
+    input wire [14:0] sw
 );
     wire instr_stall;
     wire data_stall;
@@ -323,9 +366,11 @@ module Core(
     wire [31:0] instruction;
     wire [31:0] prog_counter;
 
+    wire [15:0] led1;
     IFStage if_stage(
         .clock, .reset, .m_instr, .instr_stall, .data_stall,
-        .branch_taken, .new_pc, .instruction, .prev_pc(prog_counter)
+        .branch_taken, .new_pc, .instruction, .prev_pc(prog_counter),
+        .led(led1), .sw_high(sw[13]), .sw_instr(sw[12])
     );
 
     wire wb_enable;
@@ -343,19 +388,34 @@ module Core(
     wire [2:0] op;
     wire [4:0] funct5;
 
+    wire [15:0] led2;
     IDStage id_stage(
         .clock, .reset, .instruction, .pc_in(prog_counter),
         .stall(instr_stall | data_stall), .flash(branch_taken),
         .wb_enable, .wb_dest, .wb_data, .src1, .src2_or_imm8,
         .read1, .read2, .dest, .pc_out(prog_counter2),
-        .imm_ext10, .imm_ext26, .op, .funct5
+        .imm_ext10, .imm_ext26, .op, .funct5,
+        .led(led2), .sw_high(sw[13]), .reg_num(sw[10:3])
     );
 
+    wire [15:0] led3;
     EX_MEMStage ex_mem_stage(
         .clock, .reset, .src1, .src2_or_imm8, .read1, .read2, .dest,
         .pc(prog_counter2), .imm_ext10, .imm_ext26, .op, .funct5,
         // .wb_enable_in(wb_enable), .wb_dest_in(wb_dest), .wb_data_in(wb_data),
         .m_data, .instr_stall, .data_stall, .branch_taken, .new_pc,
-        .wb_enable, .wb_dest, .wb_data
+        .wb_enable, .wb_dest, .wb_data,
+        .led(led3), .sw_stall(sw[14])
     );
+
+    reg does_stall_occur;
+    always_ff @( posedge clock ) begin
+        if (reset) begin
+            does_stall_occur <= 0;
+        end else begin
+            does_stall_occur <= does_stall_occur | data_stall;
+        end
+    end
+
+    assign led = sw[2] ? {15'b0, does_stall_occur} : (sw[0] ? led2 : (sw[1] ? led3 : led1));
 endmodule

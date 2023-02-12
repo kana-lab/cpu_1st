@@ -10,10 +10,14 @@ module RegisterFile(
     // output reg [31:0] read1,
     // output reg [31:0] read2
     output wire [31:0] read1,
-    output wire [31:0] read2
+    output wire [31:0] read2,
+    output wire [15:0] led,
+    input wire sw_high,
+    input wire [7:0] reg_num
     );
 
     reg [31:0] regs[255:0];
+    assign led = (sw_high) ? regs[reg_num][31:16] : regs[reg_num][15:0];
 
     // フォールスルー
     assign read1 = (src1 == 8'd255) ? 0 : 

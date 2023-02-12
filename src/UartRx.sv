@@ -68,7 +68,7 @@ module UartRx #(CLK_PER_HALF_BIT = 5208) (
                     ferr <= rxd;
                     state <= next_state;
                 end else begin
-                    counter++;
+                    counter <= counter + 32'd1;
                 end
             end
 
@@ -78,7 +78,7 @@ module UartRx #(CLK_PER_HALF_BIT = 5208) (
                     n_recv <= next_n_recv;
                     rdata <= rdata_pushed;
                 end else begin
-                    counter++;
+                    counter <= counter + 32'd1;
                 end
 
                 // 厳密なことを言うとここでワンクロック遅れるのでcounterは1になる
@@ -95,7 +95,7 @@ module UartRx #(CLK_PER_HALF_BIT = 5208) (
                     ferr <= ~rxd;
                     state <= next_state;
                 end else begin
-                    counter++;
+                    counter <= counter + 32'd1;
                 end
             end
         end

@@ -54,7 +54,7 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
                     txbuf <= next_txbuf;
                     n_sent <= next_n_sent;
                 end else begin
-                    counter++;
+                    counter <= counter + 32'd1;
                 end
 
                 if (n_sent[9]) begin
@@ -68,7 +68,7 @@ module UartTx #(CLK_PER_HALF_BIT = 5208) (
                     tx_busy_1clock_behind <= 0;
                     state <= next_state;
                 end else begin
-                    counter++;
+                    counter <= counter + 32'd1;
                 end
             end
         end

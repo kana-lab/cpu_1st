@@ -19,7 +19,9 @@ module DmaController # (
     output reg instr_ready,
     output reg mem_ready,
     output reg [31:0] data,
-    output wire program_loaded
+    output wire program_loaded,
+
+    output wire [15:0] led
     );
 
     // server/readme.pdfの仕様に従って実装する
@@ -42,15 +44,20 @@ module DmaController # (
 
     // プログラムサイズ(little endian)
     reg [31:0] program_size;
+    reg [31:0] program_received;
 
     // 0x99を送り続ける間隔
     reg [7:0] counter;
+    wire [1:0] state_short = (state[0])?2'b0:(state[1]?2'b1:(state[2]?2'd2:2'd3));
+    assign led = {state_short,program_received[13:0]};
 
     always_ff @(posedge clock) begin
         if (reset) begin
             state <= 4'b1;
             n_byte <= 4'b1;
             program_size <= 0;
+            program_received <= 0;
+            // program_size_debug <= 0;
             counter <= 0;
 
             tx_start <= 0;
@@ -70,17 +77,31 @@ module DmaController # (
                     sdata <= 8'h99;
                     counter <= 0;
                 end else begin
-                    counter <= counter + 1;
+                    counter <= counter + 8'd1;
                 end
                 // state <= next_state;
                 if (rx_ready)
                     state <= next_state;
             end
 
-            if (state[2] && program_size == 0 && ~tx_busy) begin
-                tx_start <= 1'b1;
-                sdata <= 8'haa;
-                state <= next_state;
+            // if (state[2] == 1'b1 && program_size == program_received) begin
+            //     if (counter >= INTERVAL_0x99 && ~tx_busy) begin
+            //         tx_start <= 1'b1;
+            //         sdata <= 8'haa;
+            //         counter <= 0;
+            //     end else begin
+            //         counter <= counter + 8'd1;
+            //     end
+
+            //     if (rx_ready)  // これが無いと信号を送るタイミングが早すぎて伝わらなかったりする
+            //         state <= next_state;
+            // end
+            if (state[2] == 1'b1 && program_size == program_received) begin
+                if (~tx_busy) begin
+                    tx_start <= 1'b1;
+                    sdata <= 8'haa;
+                    state <= next_state;
+                end
             end
             
             // 仕様を満たさない余分な受信データがあった場合正常に動作しない
@@ -91,11 +112,12 @@ module DmaController # (
 
                 if (state[1] & n_byte[3]) begin
                     program_size <= next_data;
+                    // program_size_debug <= next_data;
                     state <= next_state;
                 end
 
                 if (state[2]) begin
-                    program_size--;
+                    program_received <= program_received + 32'd1;
                     if (n_byte[3]) instr_ready <= 1'b1;
                 end
 

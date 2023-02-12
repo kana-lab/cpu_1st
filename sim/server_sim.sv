@@ -1,4 +1,4 @@
-`timescale 1ps/1ps
+`timescale 1ns/1ps
 // `include "UartTx.sv"
 // `include "UartRx.sv"
 // `include "top.v"
@@ -10,7 +10,7 @@
 
 module Server # (
     CLOCK_PER_HALF_BIT = 10,
-    INSTR_CODE_SIZE = 32'd60,
+    INSTR_CODE_SIZE = 32'd21,
     DATA_CODE_SIZE = 3
 ) (
     input wire clock,
@@ -22,7 +22,7 @@ module Server # (
     reg [31:0] data_buf[DATA_CODE_SIZE - 1:0];
 
     initial begin
-        $readmemh("D:/cpu_ex/cpu_1st/asm/pipeline_test.dat", instr_buf);
+        $readmemh("D:/cpu_ex/cpu_1st/asm/fpu_cache_mixed.dat", instr_buf);
         $readmemh("D:/cpu_ex/cpu_1st/asm/lsd.dat", data_buf);
     end
 
@@ -208,9 +208,46 @@ module pipeline_sim;
 
     // DataMemory bram_bus();
     // BramSim bram(.clock, .reset, .request(bram_bus.slave));
-    DataMemory ddr2_bus();
-    DDR2 ddr2(.clock, .reset, .request(ddr2_bus));
-    top t(clock, resetn, rxd, txd, led,
+    // DataMemory ddr2_bus();
+    // DDR2 ddr2(.clock, .reset, .request(ddr2_bus));
+    
+    // DDR2 wires
+    wire [12:0] ddr2_addr;
+    wire [2:0] ddr2_ba;
+    wire ddr2_cas_n;
+    wire [0:0] ddr2_ck_n;
+    wire [0:0] ddr2_ck_p;
+    wire [0:0] ddr2_cke;
+    wire ddr2_ras_n;
+    wire ddr2_we_n;
+    wire [15:0] ddr2_dq;
+    wire [1:0] ddr2_dqs_n;
+    wire [1:0] ddr2_dqs_p;
+    wire [0:0] ddr2_cs_n;
+    wire [1:0] ddr2_dm;
+    wire [0:0] ddr2_odt;
+
+    // DDR2 model
+    ddr2 ddr2 (
+        .ck(ddr2_ck_p),
+        .ck_n(ddr2_ck_n),
+        .cke(ddr2_cke),
+        .cs_n(ddr2_cs_n),
+        .ras_n(ddr2_ras_n),
+        .cas_n(ddr2_cas_n),
+        .we_n(ddr2_we_n),
+        .dm_rdqs(ddr2_dm),
+        .ba(ddr2_ba),
+        .addr(ddr2_addr),
+        .dq(ddr2_dq),
+        .dqs(ddr2_dqs_p),
+        .dqs_n(ddr2_dqs_n),
+        .rdqs_n(),
+        .odt(ddr2_odt)
+    );
+    
+    top t(.CLK100MHZ(clock), .CPU_RESETN(resetn), .UART_TXD_IN(rxd), .UART_RXD_OUT(txd), .LED(led),
     //bram_bus.en, bram_bus.we, bram_bus.addr, bram_bus.wd, bram_bus.rd,
-    ddr2_bus.stall, ddr2_bus.rd, ddr2_bus.en, ddr2_bus.we, ddr2_bus.addr, ddr2_bus.wd);
+    //ddr2_bus.stall, ddr2_bus.rd, ddr2_bus.en, ddr2_bus.we, ddr2_bus.addr, ddr2_bus.wd);
+    .*);
 endmodule

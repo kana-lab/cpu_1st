@@ -1,0 +1,25 @@
+//    addi r50, zero, 0
+//    addi r100, zero, 0x7
+//    sw r100, r50       # アドレス0に0x7を書きこみ
+//    lw r10, r50        # アドレス0からの読み出し
+//    subi r0, zero, 8   # 送信可能バイト数
+//    subi r1, zero, 12  # 送信用アドレス
+//    addi r2, zero, 1   # ただの1
+//PRINT:
+//    lw r3, r0
+//    blt r3, r2, PRINT
+//    sw r10, r1         # 送信
+//END:
+//    j END
+2132ff00
+2164ff07
+c0006432
+e00a0032
+2200ff08
+2201ff0c
+2102ff01
+e0030000
+8bff0302
+c0000a01
+a0000000
+

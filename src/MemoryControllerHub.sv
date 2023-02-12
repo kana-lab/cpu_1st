@@ -1,7 +1,7 @@
 `timescale 1ps/1ps
 
 // `include "Memory.sv"
-`include "MemoryInterface.sv"
+// `include "MemoryInterface.sv"
 
 // module Mediator (
 //     input wire clock,
@@ -85,7 +85,10 @@
 
 // endmodule
 
-module MemoryControllerHub (
+module MemoryControllerHub #(
+    // BRAMのサイズと一致させること！！！
+    CODE_SECTION_SIZE = 32'h5000
+) (
     input wire clock,
     input wire reset,
 
@@ -113,9 +116,13 @@ module MemoryControllerHub (
     input wire tx_busy,
 
     // DDR2メモリにアクセスするためのバス
-    DataMemory.master ddr2
+    DataMemory.master ddr2,
 
-    // output wire [7:0] led
+    // 応急処置、命令メモリ(BRAM)にアクセスするためのバス
+    DataMemory.master instr_bram,
+
+    output wire [15:0] led,
+    input wire sw
 );
     // SUPER TENUKI
     reg [31:0] received_data[511:0];
@@ -124,15 +131,19 @@ module MemoryControllerHub (
     reg [9:0] mem_start;
     reg [9:0] mem_end;
     wire [9:0] mem_size = (10'd512 + mem_end - mem_start) % 10'd512;
+    reg [15:0] debug_count;
     // 現在の指示がリングバッファからポップであるか否か
     wire is_pop_queue = m_data.addr[31] & m_data.addr[0] & ~m_data.we & m_data.en;
+    assign led = (sw) ? {6'b0, mem_end} : debug_count;
 
     always_ff @(posedge clock) begin
         if (reset) begin
             mem_start <= 0;
             mem_end <= 0;
+            debug_count <= 0;
         end else begin
             if (data_ready) begin
+                debug_count <= debug_count + 16'b1;
                 mem_end <= (mem_end + 10'b1) % 10'd512;
                 received_data[mem_end] <= data;
                 if (mem_size == 10'd512 - 1)
@@ -194,11 +205,26 @@ module MemoryControllerHub (
     //     end
     // end
 
-    assign ddr2.en = m_data.en & ~m_data.addr[31];
+    // 応急処置
+    wire is_code_section = (m_data.addr < CODE_SECTION_SIZE) ? 1'b1 : 0;
+    assign instr_bram.en = m_data.en & ~m_data.addr[31] & is_code_section;
+    assign instr_bram.we = m_data.we;
+    assign instr_bram.wd = m_data.wd;
+    assign instr_bram.addr = m_data.addr;
+    reg instr_bram_stall_1clock_behind;
+    always_ff @( posedge clock ) begin
+        if (reset) begin
+            instr_bram_stall_1clock_behind <= 0;
+        end else begin
+            instr_bram_stall_1clock_behind <= instr_bram.stall;
+        end
+    end
+
+    assign ddr2.en = m_data.en & ~m_data.addr[31] & ~is_code_section;
     assign ddr2.we = m_data.we;
     assign ddr2.wd = m_data.wd;
     assign ddr2.addr = m_data.addr;
-    assign m_data.stall = ddr2.stall;
+    assign m_data.stall = ddr2.stall | instr_bram.stall;
     // reg stall_1clock_behind;
     // always_ff @( posedge clock )
     //     stall_1clock_behind <= ddr2.stall & ddr2.en;
@@ -218,12 +244,12 @@ module MemoryControllerHub (
     // );
 
     wire [31:0] uart_recv = (m_data.addr[0]) ? received_data[mem_start] : 0;
-    wire [31:0] uart_recv_size = (m_data.addr[1]) ? mem_size : 0;
+    wire [31:0] uart_recv_size = (m_data.addr[1]) ? {22'b0, mem_size} : 0;
     wire [31:0] uart_sendable = (m_data.addr[3]) ? sendable_size : 0;
     wire [31:0] mmio_res = uart_recv | uart_recv_size | uart_sendable;
     // assign m_data.rd_inst = (m_data.addr[31]) ?  mmio_res : ddr2.rd;
     assign m_data.rd_inst = mmio_res;
-    assign m_data.rd = ddr2.rd;
+    assign m_data.rd = (instr_bram_stall_1clock_behind) ? instr_bram.rd : ddr2.rd;
     // assign m_data.stall = 0;
     // assign m_instr.stall = 0;
 endmodule
