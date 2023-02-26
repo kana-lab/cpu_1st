@@ -5,7 +5,7 @@
 // BRAM は直接 block ram generator を叩くつもりだったが、後に
 // ram_style = "block"に任せることにしたためこのようなモジュールができた
 module Bram # (
-    BRAM_SIZE = 16'h5000
+    BRAM_SIZE = 16'h6c00
 ) (
     input wire clock,
     input wire reset,

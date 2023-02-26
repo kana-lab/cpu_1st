@@ -87,7 +87,7 @@
 
 module MemoryControllerHub #(
     // BRAMのサイズと一致させること！！！
-    CODE_SECTION_SIZE = 32'h5000
+    CODE_SECTION_SIZE = 32'h6c00
 ) (
     input wire clock,
     input wire reset,
